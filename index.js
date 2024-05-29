@@ -46,24 +46,7 @@ app.post("/register",(req,res) =>{
 //   failureRedirect: '/'
 // }))
 
-// app.get("/user", (req, res) => {
-//   const {name} = req.query
-//   fs.promises
-//   fs.readFile("data.json", "utf8", (err, data) => {
-//     if (err) {
-//       console.error(err);
-//       return res.status(500).send("server error");
-//     }
-//     let jsonData = JSON.parse(data);
-//     const result = jsonData.filter((item) => {
-//       if(name !== undefined && item.name.search(new RegExp(name, 'i')) === -1) {
-//          return false
-//       }
-//       return true
-//     })
-//     res.send(result)
-//   });
-// });
+
 
 app.get('/user', (req,res) => {
   const userItems = [];
@@ -93,6 +76,38 @@ app.get('/user/:id', (req,res) => {
  })
 })
 
+app.delete('/user/:id', (req,res) => {
+ 
+  db
+  .collection('user')
+  .deleteOne({_id: new ObjectId(req.params.id)})
+  .then((result) => {
+      res.status(200).json(result)
+  })
+ .catch(() => {
+  res.status(500).json('someting wrong')
+ })
+})
+
+// app.get("/user", (req, res) => {
+//   const {name} = req.query
+//   fs.promises
+//   fs.readFile("data.json", "utf8", (err, data) => {
+//     if (err) {
+//       console.error(err);
+//       return res.status(500).send("server error");
+//     }
+//     let jsonData = JSON.parse(data);
+//     const result = jsonData.filter((item) => {
+//       if(name !== undefined && item.name.search(new RegExp(name, 'i')) === -1) {
+//          return false
+//       }
+//       return true
+//     })
+//     res.send(result)
+//   });
+// });
+
 // app.get("/user/:id", (req, res) => {
 //   const { id } = req.params
 
@@ -106,20 +121,24 @@ app.get('/user/:id', (req,res) => {
 //     res.send(jsonData);
 //   });
 // });
-app.delete("/user/:id", (req, res) => {
-  const { id } = req.params
 
-  fs.readFile("data.json", "utf8", (err, data) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).send("server error");
-    }
-    let jsonData = JSON.parse(data);
-    jsonData = jsonData.filter((item)=> +item.id !== +id)
-    fs.promises.writeFile(path.resolve("data.json"), JSON.stringify(jsonData));
-    res.send(jsonData);
-  });
-});
+// app.delete("/user/:id", (req, res) => {
+//   const { id } = req.params
+
+//   fs.readFile("data.json", "utf8", (err, data) => {
+//     if (err) {
+//       console.error(err);
+//       return res.status(500).send("server error");
+//     }
+//     let jsonData = JSON.parse(data);
+//     jsonData = jsonData.filter((item)=> +item.id !== +id)
+//     fs.promises.writeFile(path.resolve("data.json"), JSON.stringify(jsonData));
+//     res.send(jsonData);
+//   });
+// });
+
+
+
 
 app.put("/user/:id", (req, res) => {
 
