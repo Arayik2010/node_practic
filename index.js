@@ -89,6 +89,31 @@ app.delete('/user/:id', (req,res) => {
  })
 })
 
+app.post('/user', (req,res) => {
+  db
+  .collection('user')
+  .insertOne(req.body)
+  .then((result) => {
+      res.status(200).json(result)
+  })
+ .catch(() => {
+  res.status(500).json('someting wrong')
+ })
+})
+
+app.patch('/user/:id', (req,res) => {
+ 
+  db
+  .collection('user')
+  .updateOne({_id: new ObjectId(req.params.id)}, {$set: req.body})
+  .then((result) => {
+      res.status(200).json(result)
+  })
+ .catch(() => {
+  res.status(500).json('someting wrong')
+ })
+})
+
 // app.get("/user", (req, res) => {
 //   const {name} = req.query
 //   fs.promises
@@ -140,41 +165,41 @@ app.delete('/user/:id', (req,res) => {
 
 
 
-app.put("/user/:id", (req, res) => {
+// app.put("/user/:id", (req, res) => {
 
-  fs.readFile("data.json", "utf8", (err, data) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).send("server error");
-    }
-    console.log(req.body)
-    let jsonData = JSON.parse(data);
-    fs.promises.writeFile(path.resolve("data.json"), JSON.stringify(jsonData.map((userItem)=>{
-      if(+userItem.id === +req.params.id) {
-        userItem = req.body
-      }
-      return userItem
+//   fs.readFile("data.json", "utf8", (err, data) => {
+//     if (err) {
+//       console.error(err);
+//       return res.status(500).send("server error");
+//     }
+//     console.log(req.body)
+//     let jsonData = JSON.parse(data);
+//     fs.promises.writeFile(path.resolve("data.json"), JSON.stringify(jsonData.map((userItem)=>{
+//       if(+userItem.id === +req.params.id) {
+//         userItem = req.body
+//       }
+//       return userItem
       
-    })));
-    res.send(jsonData);
-  });
-});
+//     })));
+//     res.send(jsonData);
+//   });
+// });
 
-app.post("/user", (req, res) => {
-  fs.readFile("data.json", "utf8", (err, data) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).send("server error");
-    }
-    let jsonData = JSON.parse(data);
-    jsonData.push(req.body);
-    fs.promises.writeFile(path.resolve("data.json"), JSON.stringify(jsonData));
-    res.send(jsonData);
-  });
-});
-app.get("/text", (req, res) => {
-  res.sendFile(path.resolve("index.html"));
-});
+// app.post("/user", (req, res) => {
+//   fs.readFile("data.json", "utf8", (err, data) => {
+//     if (err) {
+//       console.error(err);
+//       return res.status(500).send("server error");
+//     }
+//     let jsonData = JSON.parse(data);
+//     jsonData.push(req.body);
+//     fs.promises.writeFile(path.resolve("data.json"), JSON.stringify(jsonData));
+//     res.send(jsonData);
+//   });
+// });
+// app.get("/text", (req, res) => {
+//   res.sendFile(path.resolve("index.html"));
+// });
 
 app.get("/paragraph", (req, res) => {
   res.send("loream ispuns");
