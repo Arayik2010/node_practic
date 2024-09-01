@@ -114,6 +114,23 @@ app.patch('/user/:id', (req,res) => {
  })
 })
 
+
+app.get('/userName', (req,res) => {
+  const userItems = [];
+  const {name} = req.query
+  console.log(name)
+
+  db
+  .collection('user')
+  .find({name: new RegExp(name, 'i')})
+  .forEach((user) => userItems.push(user))
+  .then(() => {
+      res.status(200).json(userItems)
+  })
+ .catch(() => {
+  res.status(500).json('someting wrong')
+ })
+})
 // app.get("/user", (req, res) => {
 //   const {name} = req.query
 //   fs.promises
