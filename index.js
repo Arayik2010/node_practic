@@ -1,136 +1,255 @@
-const express = require ("express");
-const {path} = require  ("path");
-const cors = require ("cors");
-const {fs} = require ("fs");
-const { connectToDb, getDb } =  require ('./db')
-const {ObjectId} = require('mongodb');
+const express = require("express");
+const { path } = require("path");
+const cors = require("cors");
+const { fs } = require("fs");
+const { connectToDb, getDb } = require("./db");
+const { ObjectId } = require("mongodb");
+const session = require("express-session");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const passport = require("passport");
+const passportLocal = require("passport-local");
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:3000", // Allow requests from localhost:3000
+    credentials: true, // Allow cookies and session sharing
+  })
+);
 app.use(express.json());
 app.use(express.static("index.html"));
-app.use(express.urlencoded({extended:true}))
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-app.use((req, res, next) => {
-  console.log(req.url);
-  next();
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 30 * 60 * 1000,
+      httpOnly: true,
+      secure: false,
+    },
+  })
+);
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.use(
+  new passportLocal.Strategy(
+    {
+      usernameField: "email",
+    },
+    async (email, password, done) => {
+      fs.readFile("user.data.json", "utf8", (err, data) => {
+        if (err) {
+          console.error(err);
+          return res.status(500).send("server error");
+        }
+        let users = JSON.parse(data);
+        const user = users.find((user) => user.email === email);
+
+        if (user === undefined) {
+          return done(null, null, { message: "Incorrect email" });
+        }
+        if (bcrypt.compare(password, user.password)) {
+          return done(null, user);
+        }
+        done(null, null, { message: "Incorrect password" });
+      });
+    }
+  )
+);
+
+passport.serializeUser((user, done) => {
+  done(null, user.id);
 });
 
-let db
+passport.deserializeUser((id, done) => {
+  fs.readFile("user.data.json", "utf8", (err, data) => {
+    if (err) return done(err);
+
+    let users = JSON.parse(data);
+    const user = users.find((user) => user.id === id);
+    done(null, user || false);
+  });
+});
+
+let db;
 
 connectToDb((err) => {
-    if (!err) {
-        app.listen(process.env.USER_DATA, (err) => {
-            err ? console.log(err) : console.log(`Listening port ${process.env.USER_DATA}`)
-        });
-        db = getDb()
-    }else {
-        console.log(`Connection error: ${err}`)
+  if (!err) {
+    app.listen(process.env.USER_DATA, (err) => {
+      err
+        ? console.log(err)
+        : console.log(`Listening port ${process.env.USER_DATA}`);
+    });
+    db = getDb();
+  } else {
+    console.log(`Connection error: ${err}`);
+  }
+});
 
+const users = [];
+
+app.get("/user", (req, res) => {
+  const userItems = [];
+
+  db.collection("user")
+    .find()
+    .forEach((user) => userItems.push(user))
+    .then(() => {
+      res.status(200).json(userItems);
+    })
+    .catch(() => {
+      res.status(500).json("someting wrong");
+    });
+});
+
+app.get("/user/:id", (req, res) => {
+  db.collection("user")
+    .findOne({ _id: new ObjectId(req.params.id) })
+    .then((doc) => {
+      res.status(200).json(doc);
+    })
+    .catch(() => {
+      res.status(500).json("someting wrong");
+    });
+});
+
+app.delete("/user/:id", (req, res) => {
+  db.collection("user")
+    .deleteOne({ _id: new ObjectId(req.params.id) })
+    .then((result) => {
+      res.status(200).json(result);
+    })
+    .catch(() => {
+      res.status(500).json("someting wrong");
+    });
+});
+
+app.post("/user", (req, res) => {
+  db.collection("user")
+    .insertOne(req.body)
+    .then((result) => {
+      res.status(200).json(result);
+    })
+    .catch(() => {
+      res.status(500).json("someting wrong");
+    });
+});
+
+app.patch("/user/:id", (req, res) => {
+  db.collection("user")
+    .updateOne({ _id: new ObjectId(req.params.id) }, { $set: req.body })
+    .then((result) => {
+      res.status(200).json(result);
+    })
+    .catch(() => {
+      res.status(500).json("someting wrong");
+    });
+});
+
+app.get("/userName", (req, res) => {
+  const userItems = [];
+  const { name } = req.query;
+  console.log(name);
+
+  db.collection("user")
+    .find({ name: new RegExp(name, "i") })
+    .forEach((user) => userItems.push(user))
+    .then(() => {
+      res.status(200).json(userItems);
+    })
+    .catch(() => {
+      res.status(500).json("someting wrong");
+    });
+});
+
+app.post("/register", async (req, res) => {
+  try {
+    console.log(req.body);
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "All fields are required" });
     }
-})
 
-const users = []
+    const existingUser = await db.collection("userId").findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: "Email already registered" });
+    }
 
+    // Hash the password
+    const hashedPwd = await bcrypt.hash(password, 10);
 
-app.post("/register",(req,res) =>{
-    const {name,email,password} = req.body
+    // Insert into MongoDB
+    await db.collection("userId").insertOne({
+      name,
+      email,
+      password: hashedPwd,
+      createdAt: new Date(),
+    });
 
-    users.push({id:`${Date.now()}_${Math.random()}`,name,email,password})
-    console.log(users)
-    res.send('hello')
-})
+    res.status(201).json({ message: "User registered" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
-// app.post("/login", passport.authenticate("local",{
-//   successRedirect:  res.redirect('/posts/user'),
-//   failureRedirect: '/'
-// }))
+app.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
+    // Check if all fields are provided
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
+    }
 
+    // Find user in MongoDB
+    const user = await db.collection("userId").findOne({ email });
+    if (!user) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
 
-app.get('/user', (req,res) => {
-  const userItems = [];
+    // Compare passwords
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
 
-  db
-  .collection('user')
-  .find()
-  .forEach((user) => userItems.push(user))
-  .then(() => {
-      res.status(200).json(userItems)
-  })
- .catch(() => {
-  res.status(500).json('someting wrong')
- })
-})
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.SESSION_SECRET,
+      { expiresIn: "10m" }
+    );
 
-app.get('/user/:id', (req,res) => {
+    // Set cookie with token
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: false, // Set to true in production (HTTPS required)
+      sameSite: "Lax",
+      maxAge: 10 * 60 * 1000, // 10 minutes
+    });
 
-  db
-  .collection('user')
-  .findOne({_id: new ObjectId(req.params.id)})
-  .then((doc) => {
-      res.status(200).json(doc)
-  })
- .catch(() => {
-  res.status(500).json('someting wrong')
- })
-})
+    res.json({
+      message: "Login successful",
+      user: { id: user._id, email: user.email },
+      token,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
-app.delete('/user/:id', (req,res) => {
- 
-  db
-  .collection('user')
-  .deleteOne({_id: new ObjectId(req.params.id)})
-  .then((result) => {
-      res.status(200).json(result)
-  })
- .catch(() => {
-  res.status(500).json('someting wrong')
- })
-})
-
-app.post('/user', (req,res) => {
-  db
-  .collection('user')
-  .insertOne(req.body)
-  .then((result) => {
-      res.status(200).json(result)
-  })
- .catch(() => {
-  res.status(500).json('someting wrong')
- })
-})
-
-app.patch('/user/:id', (req,res) => {
- 
-  db
-  .collection('user')
-  .updateOne({_id: new ObjectId(req.params.id)}, {$set: req.body})
-  .then((result) => {
-      res.status(200).json(result)
-  })
- .catch(() => {
-  res.status(500).json('someting wrong')
- })
-})
-
-
-app.get('/userName', (req,res) => {
-  const userItems = [];
-  const {name} = req.query
-  console.log(name)
-
-  db
-  .collection('user')
-  .find({name: new RegExp(name, 'i')})
-  .forEach((user) => userItems.push(user))
-  .then(() => {
-      res.status(200).json(userItems)
-  })
- .catch(() => {
-  res.status(500).json('someting wrong')
- })
-})
 // app.get("/user", (req, res) => {
 //   const {name} = req.query
 //   fs.promises
@@ -179,9 +298,6 @@ app.get('/userName', (req,res) => {
 //   });
 // });
 
-
-
-
 // app.put("/user/:id", (req, res) => {
 
 //   fs.readFile("data.json", "utf8", (err, data) => {
@@ -196,7 +312,7 @@ app.get('/userName', (req,res) => {
 //         userItem = req.body
 //       }
 //       return userItem
-      
+
 //     })));
 //     res.send(jsonData);
 //   });
