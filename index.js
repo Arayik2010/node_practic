@@ -93,9 +93,27 @@ connectToDb((err) => {
   }
 });
 
-const users = [];
+const authenticateJWT = (req, res, next) => {
+  const token = req.cookies?.token || req.headers.authorization?.split(" ")[1];
 
-app.get("/user", (req, res) => {
+  console.log("Received Token:", token); // Debugging
+
+  if (!token) {
+    return res
+      .status(401)
+      .json({ message: "Unauthorized - No token provided", res });
+  }
+
+  jwt.verify(token, process.env.SESSION_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ message: "Forbidden - Invalid token" });
+    }
+    req.user = decoded;
+    next();
+  });
+};
+
+app.get("/user", authenticateJWT, (req, res) => {
   const userItems = [];
 
   db.collection("user")
@@ -105,7 +123,7 @@ app.get("/user", (req, res) => {
       res.status(200).json(userItems);
     })
     .catch(() => {
-      res.status(500).json("someting wrong");
+      res.status(500).json("something wrong");
     });
 });
 
@@ -116,7 +134,7 @@ app.get("/user/:id", (req, res) => {
       res.status(200).json(doc);
     })
     .catch(() => {
-      res.status(500).json("someting wrong");
+      res.status(500).json("something wrong");
     });
 });
 
@@ -250,6 +268,16 @@ app.post("/login", async (req, res) => {
   }
 });
 
+app.post("/logout", (req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: false, // Ensure secure cookies in production
+    sameSite: "Strict",
+  });
+
+  res.status(200).json({ message: "Logged out successfully" });
+});
+
 // app.get("/user", (req, res) => {
 //   const {name} = req.query
 //   fs.promises
@@ -333,14 +361,5 @@ app.post("/login", async (req, res) => {
 // app.get("/text", (req, res) => {
 //   res.sendFile(path.resolve("index.html"));
 // });
-
-app.get("/paragraph", (req, res) => {
-  res.send("loream ispuns");
-});
-
-app.post("/login", (req, res) => {
-  console.log(req.body.name);
-  res.send("oll is ok");
-});
 
 // app.listen(process.env.USER_DATA);
